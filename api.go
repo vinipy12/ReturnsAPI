@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -25,41 +24,65 @@ type returnRequest struct {
 
 var allRequests = make(map[uuid.UUID]returnRequest)
 
-func returnsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "POST" {
-		var req returnRequest
-		decoder := json.NewDecoder(r.Body)
-		defer r.Body.Close()
+func validatePayload(payload returnRequest) bool {
+	if payload.OrderId == "" || len(payload.OrderId) > 100 {
+		return false
+	}
+	return true
+}
 
-		if err := decoder.Decode(&req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+func newReturn(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
 
-		if req.OrderId == "" || len(req.OrderId) > 100 {
-			w.WriteHeader(http.StatusBadRequest)
-		}
+	if r.Header.Get("Content-Type") != "application/json" {
+		w.WriteHeader(http.StatusUnsupportedMediaType)
+		return
+	}
 
-		id := uuid.New()
-		allRequests[id] = req
-		fmt.Println(id)
+	var payload returnRequest
+	decoder := json.NewDecoder(r.Body)
+	defer r.Body.Close()
 
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(req); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
-	} else {
-		strId := r.PathValue("id")
-		parsedId, err := uuid.Parse(strId)
-		if err != nil {
-			log.Printf("Failed to parse id: %v", err)
-		}
+	if err := decoder.Decode(&payload); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
 
-		order := allRequests[parsedId]
-		w.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(w).Encode(order); err != nil {
-			log.Printf("Failed to encode response: %v", err)
-		}
+	if !validatePayload(payload) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	id := uuid.New()
+	allRequests[id] = payload
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(payload); err != nil {
+		log.Printf("Failed to encode response: %v", err)
+	}
+}
+
+func getReturn(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "GET" {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	strId := r.PathValue("id")
+	parsedId, err := uuid.Parse(strId)
+	if err != nil {
+		log.Printf("Failed to parse id: %v", err)
+	}
+
+	encoder := json.NewEncoder(w)
+	order := allRequests[parsedId]
+	w.WriteHeader(http.StatusOK)
+	if err := encoder.Encode(order); err != nil {
+		log.Printf("Failed to encode response: %v", err)
 	}
 
 }
@@ -67,8 +90,8 @@ func returnsHandler(w http.ResponseWriter, r *http.Request) {
 func (s *ApiServer) Run() error {
 	router := http.NewServeMux()
 
-	router.HandleFunc("POST /returns", returnsHandler)
-	router.HandleFunc("GET /returns/{id}", returnsHandler)
+	router.HandleFunc("POST /returns", newReturn)
+	router.HandleFunc("GET /returns/{id}", getReturn)
 
 	server := http.Server{
 		Addr:    s.addr,
