@@ -95,7 +95,7 @@ func (s *ApiServer) Run() error {
 
 	server := http.Server{
 		Addr:    s.addr,
-		Handler: router,
+		Handler: requestLoggerMiddleware(router),
 	}
 
 	return server.ListenAndServe()
