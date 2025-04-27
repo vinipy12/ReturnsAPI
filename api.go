@@ -33,12 +33,12 @@ func validatePayload(payload returnRequest) bool {
 
 func newReturn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		sendError(w, http.StatusMethodNotAllowed, "Invalid HTTP Method")
 		return
 	}
 
 	if r.Header.Get("Content-Type") != "application/json" {
-		w.WriteHeader(http.StatusUnsupportedMediaType)
+		sendError(w, http.StatusUnsupportedMediaType, "Invalid Content-Type Header")
 		return
 	}
 
@@ -47,12 +47,12 @@ func newReturn(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 
 	if err := decoder.Decode(&payload); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		sendError(w, http.StatusBadRequest, "Failed to decode payload")
 		return
 	}
 
 	if !validatePayload(payload) {
-		w.WriteHeader(http.StatusBadRequest)
+		sendError(w, http.StatusBadRequest, "Invalid Payload")
 		return
 	}
 
@@ -68,7 +68,7 @@ func newReturn(w http.ResponseWriter, r *http.Request) {
 
 func getReturn(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "GET" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		sendError(w, http.StatusMethodNotAllowed, "Invalid HTTP Method")
 		return
 	}
 
