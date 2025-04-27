@@ -36,6 +36,10 @@ func returnsHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if req.OrderId == "" || len(req.OrderId) > 100 {
+			w.WriteHeader(http.StatusBadRequest)
+		}
+
 		id := uuid.New()
 		allRequests[id] = req
 		fmt.Println(id)
