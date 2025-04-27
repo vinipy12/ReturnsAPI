@@ -93,9 +93,14 @@ func (s *ApiServer) Run() error {
 	router.HandleFunc("POST /returns", newReturn)
 	router.HandleFunc("GET /returns/{id}", getReturn)
 
+	middlewareChain := MiddlewareChain(
+		requestLoggerMiddleware,
+		rateLimiterMiddleware,
+	)
+
 	server := http.Server{
 		Addr:    s.addr,
-		Handler: requestLoggerMiddleware(router),
+		Handler: middlewareChain(router),
 	}
 
 	return server.ListenAndServe()

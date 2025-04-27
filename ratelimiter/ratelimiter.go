@@ -1,4 +1,4 @@
-package main
+package ratelimiter
 
 import (
 	"sync"
@@ -17,39 +17,31 @@ func newAccessTracker(firstAccess time.Time, requestCounter int) *accessTracker 
 	}
 }
 
-type rateLimiter struct {
+// Trackers map grows until server restart, needs a cleanup for production environment
+
+type RateLimiter struct {
 	requestLimit int
 	duration     time.Duration
 	trackers     map[string]*accessTracker
 	mu           sync.RWMutex
 }
 
-func newRateLimiter(limit int, duration time.Duration) *rateLimiter {
-	return &rateLimiter{
+// Initializes a rate limiter for IP-based request tracking
+
+func NewRateLimiter(limit int, duration time.Duration) *RateLimiter {
+	return &RateLimiter{
 		requestLimit: limit,
 		duration:     duration,
 		trackers:     make(map[string]*accessTracker),
 	}
 }
 
-func (rl *rateLimiter) checkTimeWindow(ip string) bool {
-	rl.mu.RLock()
-	defer rl.mu.RUnlock()
-	timeDelta := time.Now().Sub(rl.trackers[ip].firstAccess)
-	return timeDelta < rl.duration
-}
+var InMemoryRateLimiter = NewRateLimiter(10, 1*time.Minute)
 
-func (rl *rateLimiter) resetTimeWindow(ip string) {
-	rl.mu.Lock()
-	rl.trackers[ip].requestCounter = 1
-	rl.trackers[ip].firstAccess = time.Now()
-	rl.mu.Unlock()
-}
-
-func (rl *rateLimiter) trackRequest(ip string) bool {
+func (rl *RateLimiter) AllowRequest(ip string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
-	ipTracker, check := rl.trackers[ip]
+	_, check := rl.trackers[ip]
 	if !check {
 		firstAccess := time.Now()
 		requestCounter := 1
@@ -57,11 +49,16 @@ func (rl *rateLimiter) trackRequest(ip string) bool {
 		return true
 	}
 
-	if ipTracker.requestCounter < rl.requestLimit && rl.checkTimeWindow(ip) {
-		rl.trackers[ip].requestCounter++
-		return true
-	} else {
-		rl.resetTimeWindow(ip)
+	if time.Since(rl.trackers[ip].firstAccess) < rl.duration {
+		if rl.trackers[ip].requestCounter < rl.requestLimit {
+			rl.trackers[ip].requestCounter++
+			return true
+		}
+		// Even if requestCounter == rl.requestLimit, the request should be blocked
 		return false
+	} else {
+		rl.trackers[ip].requestCounter = 1
+		rl.trackers[ip].firstAccess = time.Now()
+		return true
 	}
 }
