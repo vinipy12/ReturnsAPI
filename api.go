@@ -2,19 +2,22 @@ package main
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
+	"github.com/vinipy12/ReturnsAPI/logger"
 )
 
 type ApiServer struct {
-	addr string
+	addr   string
+	logger logger.Logger
 }
 
 func newApiServer(addr string) *ApiServer {
 	return &ApiServer{
-		addr: addr,
+		addr:   addr,
+		logger: *logger.NewLogger(),
 	}
 }
 
@@ -62,7 +65,7 @@ func newReturn(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		log.Printf("Failed to encode response: %v", err)
+		logger.Log(fmt.Sprintf("Failed to encode response: %v", err))
 	}
 }
 
@@ -75,14 +78,14 @@ func getReturn(w http.ResponseWriter, r *http.Request) {
 	strId := r.PathValue("id")
 	parsedId, err := uuid.Parse(strId)
 	if err != nil {
-		log.Printf("Failed to parse id: %v", err)
+		logger.Log(fmt.Sprintf("Failed to parse id: %v", err))
 	}
 
 	encoder := json.NewEncoder(w)
 	order := allRequests[parsedId]
 	w.WriteHeader(http.StatusOK)
 	if err := encoder.Encode(order); err != nil {
-		log.Printf("Failed to encode response: %v", err)
+		logger.Log(fmt.Sprintf("Failed to encode response: %v", err))
 	}
 
 }
